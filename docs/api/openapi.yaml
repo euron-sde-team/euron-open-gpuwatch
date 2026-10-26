@@ -1,0 +1,5090 @@
+openapi: 3.1.0
+info:
+  title: Euron Open GPUWatch
+  description: "\nSelf-hosted GPU monitoring and cost intelligence. Agents on your GPU machines send NVIDIA\n\
+    metrics (NVML or an existing DCGM exporter), processes and inference server metrics; GPUWatch\nkeeps\
+    \ the history, attributes every GPU-hour to a workload or to idle, finds waste and\nslowdowns, and\
+    \ alerts by email or webhook. It observes and recommends; it never starts or\nstops anything on your\
+    \ machines.\n\n* `/ingest/v1/*`: the agent contract (enrolment token, then a host token).\n* `/api/v1/*`:\
+    \ the dashboard API. Authenticate with a session token\n  (`POST /api/v1/auth/login`) or, for read-only\
+    \ automation, an API key\n  (`Authorization: Bearer gwk_...`).\n* `/metrics`: Prometheus metrics,\
+    \ including one gauge per GPU for the whole fleet.\n"
+  version: 0.1.0
+paths:
+  /ingest/v1/enroll:
+    post:
+      tags:
+      - ingest
+      summary: Exchange an enrolment token for a host token
+      operationId: enroll_ingest_v1_enroll_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrolIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrolled'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ingest/v1/batches:
+    post:
+      tags:
+      - ingest
+      summary: 'Send one collection interval: inventory, GPU samples, processes, inference'
+      operationId: batches_ingest_v1_batches_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Batch'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Sign in to the dashboard
+      operationId: login_api_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Sign out
+      description: 'Ends this session server-side too: the token is refused until it expires.'
+      operationId: logout_api_v1_auth_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+  /api/v1/auth/me:
+    get:
+      tags:
+      - auth
+      summary: The signed-in user
+      operationId: me_api_v1_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+  /api/v1/auth/password:
+    post:
+      tags:
+      - auth
+      summary: Change your password
+      operationId: password_api_v1_auth_password_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users:
+    get:
+      tags:
+      - users
+      summary: List dashboard users
+      operationId: list_users_api_v1_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/UserOut'
+                type: array
+                title: Response List Users Api V1 Users Get
+    post:
+      tags:
+      - users
+      summary: Invite a dashboard user
+      operationId: create_user_api_v1_users_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}:
+    patch:
+      tags:
+      - users
+      summary: Update a user's name, role or access
+      operationId: update_user_api_v1_users__user_id__patch
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/keys:
+    get:
+      tags:
+      - api keys
+      summary: List API keys
+      operationId: list_keys_api_v1_keys_get
+      parameters:
+      - name: include_revoked
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Revoked
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyOut'
+                title: Response List Keys Api V1 Keys Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - api keys
+      summary: Create a key (shown once)
+      operationId: create_key_api_v1_keys_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/keys/{key_id}:
+    patch:
+      tags:
+      - api keys
+      summary: Update a key's name, limit or expiry
+      operationId: update_key_api_v1_keys__key_id__patch
+      parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Key Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/keys/{key_id}/revoke:
+    post:
+      tags:
+      - api keys
+      summary: Revoke a key immediately
+      operationId: revoke_key_api_v1_keys__key_id__revoke_post
+      parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Key Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/overview:
+    get:
+      tags:
+      - overview
+      summary: Fleet health, spend and top findings
+      operationId: overview_api_v1_overview_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Overview'
+  /api/v1/hosts:
+    get:
+      tags:
+      - fleet
+      summary: Hosts and their agent status
+      operationId: list_hosts_api_v1_hosts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/HostOut'
+                type: array
+                title: Response List Hosts Api V1 Hosts Get
+  /api/v1/hosts/{host_id}:
+    get:
+      tags:
+      - fleet
+      summary: One host
+      operationId: get_host_api_v1_hosts__host_id__get
+      parameters:
+      - name: host_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Host Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - fleet
+      summary: Rename or relabel a host
+      operationId: update_host_api_v1_hosts__host_id__patch
+      parameters:
+      - name: host_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Host Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/hosts/{host_id}/revoke:
+    post:
+      tags:
+      - fleet
+      summary: Stop accepting data from a host (its token stops working; history stays)
+      operationId: revoke_host_api_v1_hosts__host_id__revoke_post
+      parameters:
+      - name: host_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Host Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/gpus:
+    get:
+      tags:
+      - fleet
+      summary: Every GPU with its newest sample
+      operationId: list_gpus_api_v1_gpus_get
+      parameters:
+      - name: host_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Host Id
+      - name: include_retired
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Retired
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GpuOut'
+                title: Response List Gpus Api V1 Gpus Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/gpus/{gpu_id}:
+    get:
+      tags:
+      - fleet
+      summary: One GPU
+      operationId: get_gpu_api_v1_gpus__gpu_id__get
+      parameters:
+      - name: gpu_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gpu Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GpuOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - fleet
+      summary: Retire a GPU taken out of service (or restore it)
+      operationId: update_gpu_api_v1_gpus__gpu_id__patch
+      parameters:
+      - name: gpu_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gpu Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GpuUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GpuOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/enrolment-tokens:
+    get:
+      tags:
+      - fleet
+      summary: Enrolment tokens
+      operationId: list_tokens_api_v1_enrolment_tokens_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/EnrolmentTokenOut'
+                type: array
+                title: Response List Tokens Api V1 Enrolment Tokens Get
+    post:
+      tags:
+      - fleet
+      summary: Create an enrolment token (shown once)
+      operationId: create_token_api_v1_enrolment_tokens_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrolmentTokenIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrolmentTokenCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/enrolment-tokens/{token_id}/revoke:
+    post:
+      tags:
+      - fleet
+      summary: Revoke an enrolment token (hosts already enrolled keep working)
+      operationId: revoke_token_api_v1_enrolment_tokens__token_id__revoke_post
+      parameters:
+      - name: token_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Token Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrolmentTokenOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/gpus/{gpu_id}/metrics:
+    get:
+      tags:
+      - telemetry
+      summary: GPU history
+      operationId: gpu_metrics_api_v1_gpus__gpu_id__metrics_get
+      parameters:
+      - name: gpu_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gpu Id
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          description: 'Default: 1 hour before end'
+          title: Start
+        description: 'Default: 1 hour before end'
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          description: 'Default: now'
+          title: End
+        description: 'Default: now'
+      - name: resolution
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - raw
+            - 1m
+            - 1h
+            type: string
+          - type: 'null'
+          description: 'Default: chosen from the range'
+          title: Resolution
+        description: 'Default: chosen from the range'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/gpus/{gpu_id}/processes:
+    get:
+      tags:
+      - telemetry
+      summary: Processes on the GPU now, and workload shares over a window
+      operationId: gpu_processes_api_v1_gpus__gpu_id__processes_get
+      parameters:
+      - name: gpu_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gpu Id
+      - name: window_hours
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 720
+          minimum: 1
+          default: 24
+          title: Window Hours
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GpuProcesses'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/fleet/series:
+    get:
+      tags:
+      - telemetry
+      summary: Fleet-wide history
+      operationId: fleet_series_api_v1_fleet_series_get
+      parameters:
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End
+      - name: host_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Host Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FleetSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/live:
+    get:
+      tags:
+      - telemetry
+      summary: Every GPU with its newest sample
+      operationId: live_snapshot_api_v1_live_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/GpuOut'
+                type: array
+                title: Response Live Snapshot Api V1 Live Get
+  /api/v1/live/stream:
+    get:
+      tags:
+      - telemetry
+      summary: 'Live updates (server-sent events: ''snapshot'' events with every GPU)'
+      operationId: live_stream_api_v1_live_stream_get
+      responses:
+        '200':
+          description: Successful Response
+  /api/v1/costs:
+    get:
+      tags:
+      - costs
+      summary: Cost over a window, grouped
+      operationId: cost_summary_api_v1_costs_get
+      parameters:
+      - name: group_by
+        in: query
+        required: false
+        schema:
+          enum:
+          - workload
+          - team
+          - host
+          - gpu
+          - model
+          type: string
+          default: workload
+          title: Group By
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          description: 'Default: 7 days before end'
+          title: Start
+        description: 'Default: 7 days before end'
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          description: 'Default: now'
+          title: End
+        description: 'Default: now'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostSummary'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/costs/series:
+    get:
+      tags:
+      - costs
+      summary: Cost over time, grouped
+      operationId: cost_series_api_v1_costs_series_get
+      parameters:
+      - name: group_by
+        in: query
+        required: false
+        schema:
+          enum:
+          - workload
+          - team
+          - host
+          - gpu
+          - model
+          type: string
+          default: workload
+          title: Group By
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/rates:
+    get:
+      tags:
+      - costs
+      summary: Hourly rates
+      operationId: list_rates_api_v1_rates_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/RateOut'
+                type: array
+                title: Response List Rates Api V1 Rates Get
+    post:
+      tags:
+      - costs
+      summary: Set a rate
+      operationId: create_rate_api_v1_rates_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/rates/{rate_id}:
+    patch:
+      tags:
+      - costs
+      summary: Change a rate
+      operationId: update_rate_api_v1_rates__rate_id__patch
+      parameters:
+      - name: rate_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rate Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - costs
+      summary: Remove a rate
+      operationId: delete_rate_api_v1_rates__rate_id__delete
+      parameters:
+      - name: rate_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rate Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/workload-rules:
+    get:
+      tags:
+      - costs
+      summary: Workload rules
+      operationId: list_rules_api_v1_workload_rules_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/WorkloadRuleOut'
+                type: array
+                title: Response List Rules Api V1 Workload Rules Get
+    post:
+      tags:
+      - costs
+      summary: Add a rule
+      operationId: create_rule_api_v1_workload_rules_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkloadRuleIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkloadRuleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/workload-rules/{rule_id}:
+    put:
+      tags:
+      - costs
+      summary: Edit a rule
+      operationId: update_rule_api_v1_workload_rules__rule_id__put
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rule Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkloadRuleIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkloadRuleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - costs
+      summary: Delete a rule
+      operationId: delete_rule_api_v1_workload_rules__rule_id__delete
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rule Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/workload-rules/apply:
+    post:
+      tags:
+      - costs
+      summary: Re-attribute every hour that still has raw samples with the current rules
+      operationId: apply_rules_api_v1_workload_rules_apply_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+  /api/v1/reports:
+    get:
+      tags:
+      - costs
+      summary: Generated reports
+      operationId: list_reports_api_v1_reports_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ReportOut'
+                type: array
+                title: Response List Reports Api V1 Reports Get
+    post:
+      tags:
+      - costs
+      summary: Export a CSV
+      operationId: create_report_api_v1_reports_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/reports/{report_id}/download:
+    get:
+      tags:
+      - costs
+      summary: Download a report CSV
+      operationId: download_report_api_v1_reports__report_id__download_get
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Report Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/insights:
+    get:
+      tags:
+      - insights
+      summary: Findings, most costly first
+      operationId: list_insights_api_v1_insights_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              enum:
+              - open
+              - acknowledged
+              - dismissed
+              - resolved
+              type: string
+          - type: 'null'
+          description: 'Default: every status'
+          title: Status
+        description: 'Default: every status'
+      - name: gpu_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Gpu Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InsightOut'
+                title: Response List Insights Api V1 Insights Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/insights/{insight_id}/actions:
+    post:
+      tags:
+      - insights
+      summary: Acknowledge, dismiss or reopen a finding
+      operationId: act_api_v1_insights__insight_id__actions_post
+      parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Insight Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightAction'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/insights/evaluate:
+    post:
+      tags:
+      - insights
+      summary: Re-run the engine now
+      operationId: evaluate_api_v1_insights_evaluate_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+  /api/v1/gpus/{gpu_id}/explain:
+    get:
+      tags:
+      - insights
+      summary: Why this GPU is expensive or slow, in plain sentences
+      operationId: explain_api_v1_gpus__gpu_id__explain_get
+      parameters:
+      - name: gpu_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gpu Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Explanation'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/settings/insights:
+    get:
+      tags:
+      - insights
+      summary: Idle rule and thresholds
+      operationId: get_settings_api_v1_settings_insights_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightSettings'
+    put:
+      tags:
+      - insights
+      summary: Change them
+      operationId: put_settings_api_v1_settings_insights_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightSettings'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightSettings'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/rules:
+    get:
+      tags:
+      - alerts
+      summary: Alert rules
+      operationId: list_rules_api_v1_alerts_rules_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/RuleOut'
+                type: array
+                title: Response List Rules Api V1 Alerts Rules Get
+    post:
+      tags:
+      - alerts
+      summary: Add a rule
+      operationId: create_rule_api_v1_alerts_rules_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/rules/{rule_id}:
+    put:
+      tags:
+      - alerts
+      summary: Edit a rule
+      operationId: update_rule_api_v1_alerts_rules__rule_id__put
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rule Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - alerts
+      summary: Delete a rule and its events
+      operationId: delete_rule_api_v1_alerts_rules__rule_id__delete
+      parameters:
+      - name: rule_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Rule Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/events:
+    get:
+      tags:
+      - alerts
+      summary: Firing first, then recent
+      operationId: list_events_api_v1_alerts_events_get
+      parameters:
+      - name: firing
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Firing
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventOut'
+                title: Response List Events Api V1 Alerts Events Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/notifications:
+    get:
+      tags:
+      - alerts
+      summary: Delivery history
+      operationId: list_notifications_api_v1_alerts_notifications_get
+      parameters:
+      - name: event_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Event Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationOut'
+                title: Response List Notifications Api V1 Alerts Notifications Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/channels:
+    get:
+      tags:
+      - alerts
+      summary: Notification channels
+      operationId: list_channels_api_v1_alerts_channels_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ChannelOut'
+                type: array
+                title: Response List Channels Api V1 Alerts Channels Get
+    post:
+      tags:
+      - alerts
+      summary: Add a channel
+      operationId: create_channel_api_v1_alerts_channels_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelIn'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/channels/{channel_id}:
+    put:
+      tags:
+      - alerts
+      summary: Edit a channel
+      operationId: update_channel_api_v1_alerts_channels__channel_id__put
+      parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Channel Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - alerts
+      summary: Delete a channel
+      operationId: delete_channel_api_v1_alerts_channels__channel_id__delete
+      parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Channel Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alerts/channels/{channel_id}/test:
+    post:
+      tags:
+      - alerts
+      summary: Send a test notification
+      operationId: test_channel_api_v1_alerts_channels__channel_id__test_post
+      parameters:
+      - name: channel_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Channel Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/inference/endpoints:
+    get:
+      tags:
+      - inference
+      summary: Inference servers, last 24 hours
+      operationId: list_endpoints_api_v1_inference_endpoints_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/EndpointOut'
+                type: array
+                title: Response List Endpoints Api V1 Inference Endpoints Get
+  /api/v1/inference/endpoints/{endpoint_id}/series:
+    get:
+      tags:
+      - inference
+      summary: Throughput, latency percentiles and cost per token over time
+      operationId: endpoint_series_api_v1_inference_endpoints__endpoint_id__series_get
+      parameters:
+      - name: endpoint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Endpoint Id
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/audit:
+    get:
+      tags:
+      - audit
+      summary: Append-only audit log
+      operationId: list_audit_api_v1_audit_get
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_AuditOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /healthz:
+    get:
+      tags:
+      - system
+      summary: Liveness
+      operationId: healthz_healthz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Healthz Healthz Get
+  /health:
+    get:
+      tags:
+      - system
+      summary: Liveness (alias of /healthz)
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Health Get
+  /readyz:
+    get:
+      tags:
+      - system
+      summary: 'Readiness: Postgres reachable (Redis too, when configured)'
+      operationId: readyz_readyz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Readyz Readyz Get
+  /api/v1/system:
+    get:
+      tags:
+      - system
+      summary: Deployment configuration
+      operationId: system_api_v1_system_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+components:
+  schemas:
+    Ack:
+      properties:
+        ok:
+          type: boolean
+          title: Ok
+          default: true
+        message:
+          type: string
+          title: Message
+          default: ''
+      type: object
+      title: Ack
+    AgentInfo:
+      properties:
+        version:
+          type: string
+          maxLength: 120
+          title: Version
+        collector:
+          type: string
+          enum:
+          - nvml
+          - dcgm
+          - simulated
+          title: Collector
+        hostname:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Hostname
+        os:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Os
+        kernel:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Kernel
+        driver_version:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Driver Version
+        cuda_version:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Cuda Version
+        interval_s:
+          type: number
+          maximum: 3600.0
+          exclusiveMinimum: 0.0
+          title: Interval S
+        status:
+          type: string
+          enum:
+          - ok
+          - degraded
+          title: Status
+          default: ok
+        problems:
+          items:
+            $ref: '#/components/schemas/Problem'
+          type: array
+          maxItems: 20
+          title: Problems
+      type: object
+      required:
+      - version
+      - collector
+      - hostname
+      - interval_s
+      title: AgentInfo
+    AuditOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        at:
+          type: string
+          format: date-time
+          title: At
+        actor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Actor Id
+        actor_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Email
+        action:
+          type: string
+          title: Action
+        target_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Type
+        target_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Id
+        details:
+          additionalProperties: true
+          type: object
+          title: Details
+        ip:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ip
+      type: object
+      required:
+      - id
+      - at
+      - actor_id
+      - actor_email
+      - action
+      - target_type
+      - target_id
+      - details
+      - ip
+      title: AuditOut
+    Batch:
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+          title: Batch Id
+        agent:
+          $ref: '#/components/schemas/AgentInfo'
+        gpus:
+          items:
+            $ref: '#/components/schemas/GpuInfo'
+          type: array
+          maxItems: 256
+          title: Gpus
+        samples:
+          items:
+            $ref: '#/components/schemas/GpuSampleIn'
+          type: array
+          title: Samples
+        processes:
+          items:
+            $ref: '#/components/schemas/ProcessIn'
+          type: array
+          title: Processes
+        inference:
+          items:
+            $ref: '#/components/schemas/InferenceIn'
+          type: array
+          maxItems: 2000
+          title: Inference
+      type: object
+      required:
+      - batch_id
+      - agent
+      title: Batch
+    BatchAccepted:
+      properties:
+        accepted:
+          type: boolean
+          title: Accepted
+        duplicate:
+          type: boolean
+          title: Duplicate
+        samples:
+          type: integer
+          title: Samples
+        processes:
+          type: integer
+          title: Processes
+        inference:
+          type: integer
+          title: Inference
+        dropped:
+          type: integer
+          title: Dropped
+        next_in_s:
+          type: number
+          title: Next In S
+      type: object
+      required:
+      - accepted
+      - duplicate
+      - samples
+      - processes
+      - inference
+      - dropped
+      - next_in_s
+      title: BatchAccepted
+    ChannelIn:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        kind:
+          type: string
+          enum:
+          - email
+          - webhook
+          title: Kind
+        emails:
+          items:
+            type: string
+            maxLength: 320
+            pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          type: array
+          maxItems: 20
+          title: Emails
+        url:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Url
+        secret:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Secret
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+      type: object
+      required:
+      - name
+      - kind
+      title: ChannelIn
+    ChannelOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - email
+          - webhook
+          title: Kind
+        emails:
+          items:
+            type: string
+          type: array
+          title: Emails
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        signed:
+          type: boolean
+          title: Signed
+          description: Webhook deliveries carry an HMAC signature
+        enabled:
+          type: boolean
+          title: Enabled
+        last_delivery_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Delivery At
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - kind
+      - emails
+      - url
+      - signed
+      - enabled
+      - last_delivery_at
+      - last_error
+      - created_at
+      title: ChannelOut
+    CostRow:
+      properties:
+        key:
+          type: string
+          title: Key
+        label:
+          type: string
+          title: Label
+        nusd:
+          type: integer
+          title: Nusd
+        idle_nusd:
+          type: integer
+          title: Idle Nusd
+        gpu_hours:
+          type: number
+          title: Gpu Hours
+        share:
+          type: number
+          title: Share
+          description: Share of the total cost, 0 to 1
+      type: object
+      required:
+      - key
+      - label
+      - nusd
+      - idle_nusd
+      - gpu_hours
+      - share
+      title: CostRow
+    CostSeries:
+      properties:
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        group_by:
+          type: string
+          enum:
+          - workload
+          - team
+          - host
+          - gpu
+          - model
+          title: Group By
+        interval:
+          type: string
+          enum:
+          - hour
+          - day
+          title: Interval
+        keys:
+          items:
+            type: string
+          type: array
+          title: Keys
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+          title: Labels
+        points:
+          items:
+            $ref: '#/components/schemas/CostSeriesPoint'
+          type: array
+          title: Points
+      type: object
+      required:
+      - start
+      - end
+      - group_by
+      - interval
+      - keys
+      - labels
+      - points
+      title: CostSeries
+    CostSeriesPoint:
+      properties:
+        bucket:
+          type: string
+          format: date-time
+          title: Bucket
+        values:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Values
+      type: object
+      required:
+      - bucket
+      - values
+      title: CostSeriesPoint
+    CostSummary:
+      properties:
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        group_by:
+          type: string
+          enum:
+          - workload
+          - team
+          - host
+          - gpu
+          - model
+          title: Group By
+        total_nusd:
+          type: integer
+          title: Total Nusd
+        idle_nusd:
+          type: integer
+          title: Idle Nusd
+          description: Cost of GPU time with nothing running
+        held_idle_nusd:
+          type: integer
+          title: Held Idle Nusd
+          description: Cost of GPU time held by a workload but unused
+        gpu_hours:
+          type: number
+          title: Gpu Hours
+        unpriced_gpu_hours:
+          type: number
+          title: Unpriced Gpu Hours
+          description: Monitored hours of GPUs that have no rate
+        rows:
+          items:
+            $ref: '#/components/schemas/CostRow'
+          type: array
+          title: Rows
+      type: object
+      required:
+      - start
+      - end
+      - group_by
+      - total_nusd
+      - idle_nusd
+      - held_idle_nusd
+      - gpu_hours
+      - unpriced_gpu_hours
+      - rows
+      title: CostSummary
+    EndpointOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        host_id:
+          type: string
+          format: uuid
+          title: Host Id
+        host_name:
+          type: string
+          title: Host Name
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          title: Kind
+        url:
+          type: string
+          title: Url
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        gpu_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Gpu Ids
+        gpu_labels:
+          items:
+            type: string
+          type: array
+          title: Gpu Labels
+        up:
+          type: boolean
+          title: Up
+        last_seen_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Seen At
+        stats_24h:
+          $ref: '#/components/schemas/InferenceStats'
+      type: object
+      required:
+      - id
+      - host_id
+      - host_name
+      - name
+      - kind
+      - url
+      - model
+      - gpu_ids
+      - gpu_labels
+      - up
+      - last_seen_at
+      - stats_24h
+      title: EndpointOut
+    EnrolIn:
+      properties:
+        token:
+          type: string
+          maxLength: 200
+          minLength: 10
+          title: Token
+        machine_id:
+          type: string
+          maxLength: 128
+          minLength: 8
+          pattern: ^[A-Za-z0-9._:-]+$
+          title: Machine Id
+        hostname:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Hostname
+        labels:
+          patternProperties:
+            ^[A-Za-z0-9_.-]+$:
+              type: string
+              maxLength: 120
+          propertyNames:
+            maxLength: 63
+            minLength: 1
+          type: object
+          maxProperties: 20
+          title: Labels
+      type: object
+      required:
+      - token
+      - machine_id
+      - hostname
+      title: EnrolIn
+    Enrolled:
+      properties:
+        host_id:
+          type: string
+          format: uuid
+          title: Host Id
+        host_token:
+          type: string
+          title: Host Token
+          description: 'gwh_...: send as ''Authorization: Bearer'' on batches'
+        simulated:
+          type: boolean
+          title: Simulated
+      type: object
+      required:
+      - host_id
+      - host_token
+      - simulated
+      title: Enrolled
+    EnrolmentTokenCreated:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        display:
+          type: string
+          title: Display
+          description: 'Safe identifier: gwe_<prefix>_****'
+        labels:
+          additionalProperties: true
+          type: object
+          title: Labels
+        simulated:
+          type: boolean
+          title: Simulated
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        max_uses:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Uses
+        uses:
+          type: integer
+          title: Uses
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Revoked At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        usable:
+          type: boolean
+          title: Usable
+        token:
+          type: string
+          title: Token
+          description: Shown once. Give it to the agent as GPUWATCH_ENROLMENT_TOKEN
+      type: object
+      required:
+      - id
+      - name
+      - display
+      - labels
+      - simulated
+      - expires_at
+      - max_uses
+      - uses
+      - revoked_at
+      - created_at
+      - usable
+      - token
+      title: EnrolmentTokenCreated
+    EnrolmentTokenIn:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        labels:
+          patternProperties:
+            ^[A-Za-z0-9_.-]+$:
+              type: string
+              maxLength: 120
+          propertyNames:
+            maxLength: 63
+            minLength: 1
+          type: object
+          maxProperties: 20
+          title: Labels
+        expires_in_days:
+          anyOf:
+          - type: integer
+            maximum: 365.0
+            minimum: 1.0
+          - type: 'null'
+          title: Expires In Days
+          default: 30
+        max_uses:
+          anyOf:
+          - type: integer
+            maximum: 100000.0
+            minimum: 1.0
+          - type: 'null'
+          title: Max Uses
+      type: object
+      required:
+      - name
+      title: EnrolmentTokenIn
+    EnrolmentTokenOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        display:
+          type: string
+          title: Display
+          description: 'Safe identifier: gwe_<prefix>_****'
+        labels:
+          additionalProperties: true
+          type: object
+          title: Labels
+        simulated:
+          type: boolean
+          title: Simulated
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        max_uses:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Uses
+        uses:
+          type: integer
+          title: Uses
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Revoked At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        usable:
+          type: boolean
+          title: Usable
+      type: object
+      required:
+      - id
+      - name
+      - display
+      - labels
+      - simulated
+      - expires_at
+      - max_uses
+      - uses
+      - revoked_at
+      - created_at
+      - usable
+      title: EnrolmentTokenOut
+    EventOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        rule_id:
+          type: string
+          format: uuid
+          title: Rule Id
+        rule_name:
+          type: string
+          title: Rule Name
+        kind:
+          type: string
+          enum:
+          - threshold
+          - agent_offline
+          - gpu_lost
+          title: Kind
+        severity:
+          type: string
+          enum:
+          - info
+          - warning
+          - critical
+          title: Severity
+        message:
+          type: string
+          title: Message
+        value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Value
+        host_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Host Id
+        host_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Host Name
+        gpu_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Gpu Id
+        gpu_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gpu Label
+        started_at:
+          type: string
+          format: date-time
+          title: Started At
+        resolved_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Resolved At
+        notifications:
+          type: integer
+          title: Notifications
+        notifications_failed:
+          type: integer
+          title: Notifications Failed
+      type: object
+      required:
+      - id
+      - rule_id
+      - rule_name
+      - kind
+      - severity
+      - message
+      - value
+      - host_id
+      - host_name
+      - gpu_id
+      - gpu_label
+      - started_at
+      - resolved_at
+      - notifications
+      - notifications_failed
+      title: EventOut
+    Explanation:
+      properties:
+        gpu_id:
+          type: string
+          format: uuid
+          title: Gpu Id
+        window_days:
+          type: integer
+          title: Window Days
+        headline:
+          type: string
+          title: Headline
+        sentences:
+          items:
+            type: string
+          type: array
+          title: Sentences
+        cost_nusd:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Cost Nusd
+        idle_nusd:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Idle Nusd
+        held_idle_nusd:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Held Idle Nusd
+        findings:
+          items:
+            $ref: '#/components/schemas/InsightOut'
+          type: array
+          title: Findings
+      type: object
+      required:
+      - gpu_id
+      - window_days
+      - headline
+      - sentences
+      - cost_nusd
+      - idle_nusd
+      - held_idle_nusd
+      - findings
+      title: Explanation
+    FleetPoint:
+      properties:
+        ts:
+          type: string
+          format: date-time
+          title: Ts
+        util_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util Avg
+        mem_pct_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Pct Avg
+        power_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power W
+        gpus:
+          type: integer
+          title: Gpus
+      type: object
+      required:
+      - ts
+      - util_avg
+      - mem_pct_avg
+      - power_w
+      - gpus
+      title: FleetPoint
+    FleetSeries:
+      properties:
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        resolution:
+          type: string
+          enum:
+          - raw
+          - 1m
+          - 1h
+          title: Resolution
+        points:
+          items:
+            $ref: '#/components/schemas/FleetPoint'
+          type: array
+          title: Points
+      type: object
+      required:
+      - start
+      - end
+      - resolution
+      - points
+      title: FleetSeries
+    GpuInfo:
+      properties:
+        uuid:
+          type: string
+          maxLength: 96
+          minLength: 1
+          title: Uuid
+        index:
+          type: integer
+          maximum: 1024.0
+          minimum: 0.0
+          title: Index
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        memory_total_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Memory Total Mib
+        power_limit_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power Limit W
+        pci_bus_id:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Pci Bus Id
+        mig_mode:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Mig Mode
+      type: object
+      required:
+      - uuid
+      - index
+      - name
+      title: GpuInfo
+    GpuOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        host_id:
+          type: string
+          format: uuid
+          title: Host Id
+        host_name:
+          type: string
+          title: Host Name
+        host_simulated:
+          type: boolean
+          title: Host Simulated
+        uuid:
+          type: string
+          title: Uuid
+        index:
+          type: integer
+          title: Index
+        name:
+          type: string
+          title: Name
+        memory_total_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Memory Total Mib
+        power_limit_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power Limit W
+        pci_bus_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pci Bus Id
+        mig_mode:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Mig Mode
+        status:
+          type: string
+          enum:
+          - ok
+          - lost
+          - offline
+          - retired
+          title: Status
+        first_seen_at:
+          type: string
+          format: date-time
+          title: First Seen At
+        last_seen_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Seen At
+        retired_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Retired At
+        nusd_per_hour:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Nusd Per Hour
+          description: The rate that applies, if any
+        rate_scope:
+          anyOf:
+          - type: string
+            enum:
+            - gpu
+            - host
+            - model
+          - type: 'null'
+          title: Rate Scope
+        live:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Live
+          description: Newest sample, null when none is recent
+      type: object
+      required:
+      - id
+      - host_id
+      - host_name
+      - host_simulated
+      - uuid
+      - index
+      - name
+      - memory_total_mib
+      - power_limit_w
+      - pci_bus_id
+      - mig_mode
+      - status
+      - first_seen_at
+      - last_seen_at
+      - retired_at
+      - nusd_per_hour
+      - rate_scope
+      - live
+      title: GpuOut
+    GpuProcesses:
+      properties:
+        gpu_id:
+          type: string
+          format: uuid
+          title: Gpu Id
+        at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: At
+          description: Time of the newest process list
+        listed:
+          type: boolean
+          title: Listed
+          description: False when the driver does not list processes
+        current:
+          items:
+            $ref: '#/components/schemas/ProcessOut'
+          type: array
+          title: Current
+        window_hours:
+          type: integer
+          title: Window Hours
+        workloads:
+          items:
+            $ref: '#/components/schemas/WorkloadShare'
+          type: array
+          title: Workloads
+      type: object
+      required:
+      - gpu_id
+      - at
+      - listed
+      - current
+      - window_hours
+      - workloads
+      title: GpuProcesses
+    GpuSampleIn:
+      properties:
+        gpu_uuid:
+          type: string
+          maxLength: 96
+          minLength: 1
+          title: Gpu Uuid
+        ts:
+          type: string
+          format: date-time
+          title: Ts
+        interval_s:
+          type: number
+          maximum: 3600.0
+          exclusiveMinimum: 0.0
+          title: Interval S
+        util_gpu:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util Gpu
+        util_mem:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util Mem
+        mem_used_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Used Mib
+        mem_total_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Total Mib
+        temp_c:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Temp C
+        power_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power W
+        power_limit_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power Limit W
+        fan_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fan Pct
+        sm_clock_mhz:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sm Clock Mhz
+        mem_clock_mhz:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Clock Mhz
+        pstate:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pstate
+        throttle_reasons:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Throttle Reasons
+        pcie_rx_kbps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pcie Rx Kbps
+        pcie_tx_kbps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pcie Tx Kbps
+        ecc_uncorrected:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Ecc Uncorrected
+        xid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Xid
+        procs:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Procs
+      type: object
+      required:
+      - gpu_uuid
+      - ts
+      - interval_s
+      title: GpuSampleIn
+    GpuUpdate:
+      properties:
+        retired:
+          type: boolean
+          title: Retired
+      type: object
+      required:
+      - retired
+      title: GpuUpdate
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HostOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        hostname:
+          type: string
+          title: Hostname
+        machine_id:
+          type: string
+          title: Machine Id
+        labels:
+          additionalProperties: true
+          type: object
+          title: Labels
+        status:
+          type: string
+          enum:
+          - online
+          - disconnected
+          - pending
+          - revoked
+          title: Status
+        agent_status:
+          type: string
+          enum:
+          - ok
+          - degraded
+          title: Agent Status
+        problems:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Problems
+        simulated:
+          type: boolean
+          title: Simulated
+        agent_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agent Version
+        collector:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Collector
+        os:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Os
+        kernel:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Kernel
+        driver_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Driver Version
+        cuda_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cuda Version
+        interval_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Interval S
+        gpu_count:
+          type: integer
+          title: Gpu Count
+        first_seen_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: First Seen At
+        last_seen_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Seen At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - hostname
+      - machine_id
+      - labels
+      - status
+      - agent_status
+      - problems
+      - simulated
+      - agent_version
+      - collector
+      - os
+      - kernel
+      - driver_version
+      - cuda_version
+      - interval_s
+      - gpu_count
+      - first_seen_at
+      - last_seen_at
+      - created_at
+      title: HostOut
+    HostUpdate:
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Display Name
+        labels:
+          anyOf:
+          - patternProperties:
+              ^[A-Za-z0-9_.-]+$:
+                type: string
+                maxLength: 120
+            propertyNames:
+              maxLength: 63
+              minLength: 1
+            type: object
+            maxProperties: 20
+          - type: 'null'
+          title: Labels
+      type: object
+      title: HostUpdate
+    InferenceIn:
+      properties:
+        endpoint:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Endpoint
+        kind:
+          type: string
+          enum:
+          - vllm
+          - tgi
+          title: Kind
+        url:
+          type: string
+          maxLength: 500
+          title: Url
+        model:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Model
+        gpu_uuids:
+          items:
+            type: string
+            maxLength: 96
+          type: array
+          maxItems: 64
+          title: Gpu Uuids
+        ts:
+          type: string
+          format: date-time
+          title: Ts
+        interval_s:
+          type: number
+          maximum: 3600.0
+          exclusiveMinimum: 0.0
+          title: Interval S
+        up:
+          type: boolean
+          title: Up
+        requests:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Requests
+        prompt_tokens:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Prompt Tokens
+        generation_tokens:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Generation Tokens
+        running:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Running
+        waiting:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Waiting
+        kv_cache_usage:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Kv Cache Usage
+        ttft:
+          anyOf:
+          - additionalProperties:
+              type: number
+              maximum: 1000000000000.0
+              minimum: 0.0
+            propertyNames:
+              maxLength: 24
+            type: object
+            maxProperties: 64
+          - type: 'null'
+          title: Ttft
+        itl:
+          anyOf:
+          - additionalProperties:
+              type: number
+              maximum: 1000000000000.0
+              minimum: 0.0
+            propertyNames:
+              maxLength: 24
+            type: object
+            maxProperties: 64
+          - type: 'null'
+          title: Itl
+        e2e:
+          anyOf:
+          - additionalProperties:
+              type: number
+              maximum: 1000000000000.0
+              minimum: 0.0
+            propertyNames:
+              maxLength: 24
+            type: object
+            maxProperties: 64
+          - type: 'null'
+          title: E2E
+      type: object
+      required:
+      - endpoint
+      - kind
+      - url
+      - ts
+      - interval_s
+      - up
+      title: InferenceIn
+    InferencePoint:
+      properties:
+        ts:
+          type: string
+          format: date-time
+          title: Ts
+        requests_per_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Requests Per S
+        prompt_tokens_per_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Prompt Tokens Per S
+        generation_tokens_per_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Generation Tokens Per S
+        ttft_p50_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ttft P50 S
+        ttft_p95_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ttft P95 S
+        itl_p50_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Itl P50 S
+        e2e_p95_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: E2E P95 S
+        running:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Running
+        waiting:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Waiting
+        kv_cache:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Kv Cache
+      type: object
+      required:
+      - ts
+      - requests_per_s
+      - prompt_tokens_per_s
+      - generation_tokens_per_s
+      - ttft_p50_s
+      - ttft_p95_s
+      - itl_p50_s
+      - e2e_p95_s
+      - running
+      - waiting
+      - kv_cache
+      title: InferencePoint
+    InferenceSeries:
+      properties:
+        endpoint_id:
+          type: string
+          format: uuid
+          title: Endpoint Id
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        bucket_s:
+          type: integer
+          title: Bucket S
+        summary:
+          $ref: '#/components/schemas/InferenceStats'
+        points:
+          items:
+            $ref: '#/components/schemas/InferencePoint'
+          type: array
+          title: Points
+      type: object
+      required:
+      - endpoint_id
+      - start
+      - end
+      - bucket_s
+      - summary
+      - points
+      title: InferenceSeries
+    InferenceStats:
+      properties:
+        seconds:
+          type: number
+          title: Seconds
+        requests:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Requests
+        requests_per_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Requests Per S
+        prompt_tokens:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Prompt Tokens
+        generation_tokens:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Generation Tokens
+        generation_tokens_per_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Generation Tokens Per S
+        ttft_p50_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ttft P50 S
+          description: Null when the server exposes no TTFT histogram
+        ttft_p95_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ttft P95 S
+        itl_p50_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Itl P50 S
+        itl_p95_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Itl P95 S
+        e2e_p50_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: E2E P50 S
+        e2e_p95_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: E2E P95 S
+        running_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Running Avg
+        waiting_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Waiting Avg
+        kv_cache_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Kv Cache Avg
+        gpu_util_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Gpu Util Avg
+        gpu_cost_nusd:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Gpu Cost Nusd
+          description: Cost of the bound GPUs over the window
+        nusd_per_million_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Nusd Per Million Tokens
+        nusd_per_request:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Nusd Per Request
+      type: object
+      required:
+      - seconds
+      - requests
+      - requests_per_s
+      - prompt_tokens
+      - generation_tokens
+      - generation_tokens_per_s
+      - ttft_p50_s
+      - ttft_p95_s
+      - itl_p50_s
+      - itl_p95_s
+      - e2e_p50_s
+      - e2e_p95_s
+      - running_avg
+      - waiting_avg
+      - kv_cache_avg
+      - gpu_util_avg
+      - gpu_cost_nusd
+      - nusd_per_million_tokens
+      - nusd_per_request
+      title: InferenceStats
+    InsightAction:
+      properties:
+        action:
+          type: string
+          enum:
+          - acknowledge
+          - dismiss
+          - reopen
+          title: Action
+      type: object
+      required:
+      - action
+      title: InsightAction
+    InsightOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        kind:
+          type: string
+          title: Kind
+        severity:
+          type: string
+          enum:
+          - info
+          - warning
+          - critical
+          title: Severity
+        title:
+          type: string
+          title: Title
+        summary:
+          type: string
+          title: Summary
+        recommendation:
+          type: string
+          title: Recommendation
+        evidence:
+          additionalProperties: true
+          type: object
+          title: Evidence
+        window_start:
+          type: string
+          format: date-time
+          title: Window Start
+        window_end:
+          type: string
+          format: date-time
+          title: Window End
+        est_monthly_nusd:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Est Monthly Nusd
+        status:
+          type: string
+          enum:
+          - open
+          - acknowledged
+          - dismissed
+          - resolved
+          title: Status
+        host_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Host Id
+        host_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Host Name
+        gpu_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Gpu Id
+        gpu_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gpu Label
+        endpoint_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Endpoint Id
+        endpoint_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint Name
+        first_seen_at:
+          type: string
+          format: date-time
+          title: First Seen At
+        last_seen_at:
+          type: string
+          format: date-time
+          title: Last Seen At
+        resolved_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Resolved At
+      type: object
+      required:
+      - id
+      - kind
+      - severity
+      - title
+      - summary
+      - recommendation
+      - evidence
+      - window_start
+      - window_end
+      - est_monthly_nusd
+      - status
+      - host_id
+      - host_name
+      - gpu_id
+      - gpu_label
+      - endpoint_id
+      - endpoint_name
+      - first_seen_at
+      - last_seen_at
+      - resolved_at
+      title: InsightOut
+    InsightSettings:
+      properties:
+        idle_util_pct:
+          type: number
+          maximum: 50.0
+          minimum: 0.0
+          title: Idle Util Pct
+          default: 5.0
+        idle_min_minutes:
+          type: integer
+          maximum: 1440.0
+          minimum: 5.0
+          title: Idle Min Minutes
+          default: 30
+        idle_min_share:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Idle Min Share
+          default: 0.1
+        held_mem_pct:
+          type: number
+          maximum: 90.0
+          minimum: 1.0
+          title: Held Mem Pct
+          default: 10.0
+        window_days:
+          type: integer
+          maximum: 30.0
+          minimum: 1.0
+          title: Window Days
+          default: 7
+        underused_util_pct:
+          type: number
+          maximum: 90.0
+          minimum: 5.0
+          title: Underused Util Pct
+          default: 30.0
+        underused_min_hours:
+          type: number
+          maximum: 168.0
+          minimum: 1.0
+          title: Underused Min Hours
+          default: 6.0
+        oversized_peak_pct:
+          type: number
+          maximum: 90.0
+          minimum: 5.0
+          title: Oversized Peak Pct
+          default: 40.0
+        throttle_pct:
+          type: number
+          maximum: 100.0
+          minimum: 1.0
+          title: Throttle Pct
+          default: 10.0
+        mem_pressure_pct:
+          type: number
+          maximum: 100.0
+          minimum: 50.0
+          title: Mem Pressure Pct
+          default: 95.0
+        mem_pressure_minutes:
+          type: integer
+          maximum: 1440.0
+          minimum: 1.0
+          title: Mem Pressure Minutes
+          default: 10
+        kv_cache_full:
+          type: number
+          maximum: 1.0
+          minimum: 0.5
+          title: Kv Cache Full
+          default: 0.9
+        queue_minutes:
+          type: integer
+          maximum: 1440.0
+          minimum: 1.0
+          title: Queue Minutes
+          default: 15
+        overprovisioned_util_pct:
+          type: number
+          maximum: 90.0
+          minimum: 1.0
+          title: Overprovisioned Util Pct
+          default: 20.0
+      type: object
+      title: InsightSettings
+    KeyCreated:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        prefix:
+          type: string
+          title: Prefix
+        display:
+          type: string
+          title: Display
+          description: 'Safe identifier: gwk_<prefix>_****'
+        rpm_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rpm Limit
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Revoked At
+        last_used_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Used At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        key:
+          type: string
+          title: Key
+          description: The full key. Shown once; store it now
+      type: object
+      required:
+      - id
+      - name
+      - prefix
+      - display
+      - rpm_limit
+      - expires_at
+      - revoked_at
+      - last_used_at
+      - created_at
+      - key
+      title: KeyCreated
+    KeyIn:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        rpm_limit:
+          anyOf:
+          - type: integer
+            maximum: 1000000.0
+            minimum: 1.0
+          - type: 'null'
+          title: Rpm Limit
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+      type: object
+      required:
+      - name
+      title: KeyIn
+    KeyOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        prefix:
+          type: string
+          title: Prefix
+        display:
+          type: string
+          title: Display
+          description: 'Safe identifier: gwk_<prefix>_****'
+        rpm_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rpm Limit
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Revoked At
+        last_used_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Used At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - prefix
+      - display
+      - rpm_limit
+      - expires_at
+      - revoked_at
+      - last_used_at
+      - created_at
+      title: KeyOut
+    KeyUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Name
+        rpm_limit:
+          anyOf:
+          - type: integer
+            maximum: 1000000.0
+            minimum: 1.0
+          - type: 'null'
+          title: Rpm Limit
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+      type: object
+      title: KeyUpdate
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+    MetricPoint:
+      properties:
+        ts:
+          type: string
+          format: date-time
+          title: Ts
+        util:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util
+        util_max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util Max
+        util_mem:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util Mem
+        mem_used_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Used Mib
+        mem_used_max_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Used Max Mib
+        mem_total_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Total Mib
+        temp_c:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Temp C
+        temp_max_c:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Temp Max C
+        power_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power W
+        power_max_w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Power Max W
+        fan_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fan Pct
+        sm_clock_mhz:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sm Clock Mhz
+        procs:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Procs
+        throttle_power:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Throttle Power
+        throttle_thermal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Throttle Thermal
+        throttle_hw:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Throttle Hw
+      type: object
+      required:
+      - ts
+      - util
+      - util_max
+      - util_mem
+      - mem_used_mib
+      - mem_used_max_mib
+      - mem_total_mib
+      - temp_c
+      - temp_max_c
+      - power_w
+      - power_max_w
+      - fan_pct
+      - sm_clock_mhz
+      - procs
+      - throttle_power
+      - throttle_thermal
+      - throttle_hw
+      title: MetricPoint
+    MetricSeries:
+      properties:
+        gpu_id:
+          type: string
+          format: uuid
+          title: Gpu Id
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        resolution:
+          type: string
+          enum:
+          - raw
+          - 1m
+          - 1h
+          title: Resolution
+        points:
+          items:
+            $ref: '#/components/schemas/MetricPoint'
+          type: array
+          title: Points
+        available:
+          items:
+            type: string
+          type: array
+          title: Available
+      type: object
+      required:
+      - gpu_id
+      - start
+      - end
+      - resolution
+      - points
+      - available
+      title: MetricSeries
+    NotificationOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        event_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Event Id
+        channel_id:
+          type: string
+          format: uuid
+          title: Channel Id
+        channel_name:
+          type: string
+          title: Channel Name
+        transition:
+          type: string
+          title: Transition
+        attempts:
+          type: integer
+          title: Attempts
+        delivered_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Delivered At
+        failed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Failed At
+        next_attempt_at:
+          type: string
+          format: date-time
+          title: Next Attempt At
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - event_id
+      - channel_id
+      - channel_name
+      - transition
+      - attempts
+      - delivered_at
+      - failed_at
+      - next_attempt_at
+      - last_error
+      - created_at
+      title: NotificationOut
+    Overview:
+      properties:
+        hosts_total:
+          type: integer
+          title: Hosts Total
+        hosts_online:
+          type: integer
+          title: Hosts Online
+        hosts_degraded:
+          type: integer
+          title: Hosts Degraded
+        gpus_total:
+          type: integer
+          title: Gpus Total
+        gpus_reporting:
+          type: integer
+          title: Gpus Reporting
+        gpus_lost:
+          type: integer
+          title: Gpus Lost
+        util_now_avg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Util Now Avg
+        alerts_firing:
+          type: integer
+          title: Alerts Firing
+        insights_open:
+          type: integer
+          title: Insights Open
+        spend_7d_nusd:
+          type: integer
+          title: Spend 7D Nusd
+        idle_7d_nusd:
+          type: integer
+          title: Idle 7D Nusd
+        spend_month_nusd:
+          type: integer
+          title: Spend Month Nusd
+        unpriced_gpu_hours_7d:
+          type: number
+          title: Unpriced Gpu Hours 7D
+        est_monthly_waste_nusd:
+          type: integer
+          title: Est Monthly Waste Nusd
+        rates_set:
+          type: boolean
+          title: Rates Set
+        top_workloads:
+          items:
+            $ref: '#/components/schemas/CostRow'
+          type: array
+          title: Top Workloads
+        top_insights:
+          items:
+            $ref: '#/components/schemas/InsightOut'
+          type: array
+          title: Top Insights
+      type: object
+      required:
+      - hosts_total
+      - hosts_online
+      - hosts_degraded
+      - gpus_total
+      - gpus_reporting
+      - gpus_lost
+      - util_now_avg
+      - alerts_firing
+      - insights_open
+      - spend_7d_nusd
+      - idle_7d_nusd
+      - spend_month_nusd
+      - unpriced_gpu_hours_7d
+      - est_monthly_waste_nusd
+      - rates_set
+      - top_workloads
+      - top_insights
+      title: Overview
+    Page_AuditOut_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AuditOut'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Pass as ?cursor= to fetch the next page
+      type: object
+      required:
+      - items
+      title: Page[AuditOut]
+    PasswordChange:
+      properties:
+        current_password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Current Password
+        new_password:
+          type: string
+          maxLength: 256
+          minLength: 10
+          title: New Password
+      type: object
+      required:
+      - current_password
+      - new_password
+      title: PasswordChange
+    Problem:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          title: Code
+        message:
+          type: string
+          maxLength: 500
+          title: Message
+      type: object
+      required:
+      - code
+      - message
+      title: Problem
+    ProcessIn:
+      properties:
+        gpu_uuid:
+          type: string
+          maxLength: 96
+          minLength: 1
+          title: Gpu Uuid
+        ts:
+          type: string
+          format: date-time
+          title: Ts
+        pid:
+          type: integer
+          exclusiveMaximum: 2147483648.0
+          minimum: 0.0
+          title: Pid
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        username:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Username
+        container_id:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Container Id
+        mem_used_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Used Mib
+        sm_util:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sm Util
+      type: object
+      required:
+      - gpu_uuid
+      - ts
+      - pid
+      - name
+      title: ProcessIn
+    ProcessOut:
+      properties:
+        pid:
+          type: integer
+          title: Pid
+        name:
+          type: string
+          title: Name
+        username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Username
+        container_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Container Id
+        mem_used_mib:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mem Used Mib
+        sm_util:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sm Util
+        workload:
+          type: string
+          title: Workload
+        team:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Team
+      type: object
+      required:
+      - pid
+      - name
+      - username
+      - container_id
+      - mem_used_mib
+      - sm_util
+      - workload
+      - team
+      title: ProcessOut
+    RateIn:
+      properties:
+        scope:
+          type: string
+          enum:
+          - model
+          - host
+          - gpu
+          title: Scope
+        gpu_model:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Gpu Model
+        host_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Host Id
+        gpu_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Gpu Id
+        usd_per_hour:
+          anyOf:
+          - type: number
+            maximum: 100000.0
+            minimum: 0.0
+          - type: string
+          title: Usd Per Hour
+        note:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - scope
+      - usd_per_hour
+      title: RateIn
+    RateOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        scope:
+          type: string
+          title: Scope
+        gpu_model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gpu Model
+        host_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Host Id
+        host_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Host Name
+        gpu_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Gpu Id
+        gpu_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gpu Label
+        nusd_per_hour:
+          type: integer
+          title: Nusd Per Hour
+        usd_per_hour:
+          type: number
+          title: Usd Per Hour
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        gpus_covered:
+          type: integer
+          title: Gpus Covered
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - scope
+      - gpu_model
+      - host_id
+      - host_name
+      - gpu_id
+      - gpu_label
+      - nusd_per_hour
+      - usd_per_hour
+      - note
+      - gpus_covered
+      - updated_at
+      title: RateOut
+    RateUpdate:
+      properties:
+        usd_per_hour:
+          anyOf:
+          - type: number
+            maximum: 100000.0
+            minimum: 0.0
+          - type: string
+          - type: 'null'
+          title: Usd Per Hour
+        note:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Note
+      type: object
+      title: RateUpdate
+    ReportIn:
+      properties:
+        group_by:
+          type: string
+          enum:
+          - workload
+          - team
+          - host
+          - gpu
+          - model
+          title: Group By
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - group_by
+      - start
+      - end
+      title: ReportIn
+    ReportOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        group_by:
+          type: string
+          title: Group By
+        params:
+          additionalProperties:
+            type: string
+          type: object
+          title: Params
+        filename:
+          type: string
+          title: Filename
+        rows:
+          type: integer
+          title: Rows
+        bytes:
+          type: integer
+          title: Bytes
+        total_nusd:
+          type: integer
+          title: Total Nusd
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - group_by
+      - params
+      - filename
+      - rows
+      - bytes
+      - total_nusd
+      - note
+      - created_at
+      title: ReportOut
+    RuleIn:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        kind:
+          type: string
+          enum:
+          - threshold
+          - agent_offline
+          - gpu_lost
+          title: Kind
+          default: threshold
+        metric:
+          anyOf:
+          - type: string
+            enum:
+            - util_gpu
+            - util_mem
+            - mem_used_pct
+            - temp_c
+            - power_w
+            - power_pct
+            - fan_pct
+          - type: 'null'
+          title: Metric
+        operator:
+          anyOf:
+          - type: string
+            enum:
+            - gt
+            - lt
+          - type: 'null'
+          title: Operator
+        threshold:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Threshold
+        duration_s:
+          type: integer
+          maximum: 86400.0
+          minimum: 0.0
+          title: Duration S
+          default: 60
+        scope_host_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Scope Host Id
+        scope_gpu_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Scope Gpu Id
+        scope_label:
+          anyOf:
+          - type: string
+            maxLength: 120
+            pattern: ^[A-Za-z0-9_.-]+=.{0,100}$
+          - type: 'null'
+          title: Scope Label
+        severity:
+          type: string
+          enum:
+          - info
+          - warning
+          - critical
+          title: Severity
+          default: warning
+        channel_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          maxItems: 20
+          title: Channel Ids
+        notify_resolved:
+          type: boolean
+          title: Notify Resolved
+          default: true
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+      type: object
+      required:
+      - name
+      title: RuleIn
+    RuleOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        kind:
+          type: string
+          enum:
+          - threshold
+          - agent_offline
+          - gpu_lost
+          title: Kind
+        metric:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metric
+        operator:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator
+        threshold:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Threshold
+        duration_s:
+          type: integer
+          title: Duration S
+        scope_host_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Scope Host Id
+        scope_gpu_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Scope Gpu Id
+        scope_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scope Label
+        severity:
+          type: string
+          enum:
+          - info
+          - warning
+          - critical
+          title: Severity
+        channel_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Channel Ids
+        notify_resolved:
+          type: boolean
+          title: Notify Resolved
+        enabled:
+          type: boolean
+          title: Enabled
+        description:
+          type: string
+          title: Description
+        firing:
+          type: integer
+          title: Firing
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - kind
+      - metric
+      - operator
+      - threshold
+      - duration_s
+      - scope_host_id
+      - scope_gpu_id
+      - scope_label
+      - severity
+      - channel_ids
+      - notify_resolved
+      - enabled
+      - description
+      - firing
+      - created_at
+      title: RuleOut
+    SessionOut:
+      properties:
+        user:
+          $ref: '#/components/schemas/UserOut'
+        session_token:
+          type: string
+          title: Session Token
+          description: Bearer token for API clients; browsers use the cookie
+        expires_in_s:
+          type: integer
+          title: Expires In S
+      type: object
+      required:
+      - user
+      - session_token
+      - expires_in_s
+      title: SessionOut
+    SystemInfo:
+      properties:
+        version:
+          type: string
+          title: Version
+        environment:
+          type: string
+          title: Environment
+        cloud:
+          type: string
+          title: Cloud
+        key_mode:
+          type: string
+          title: Key Mode
+        storage:
+          type: string
+          title: Storage
+        cache_backend:
+          type: string
+          title: Cache Backend
+        mail_mode:
+          type: string
+          title: Mail Mode
+        dashboard_url:
+          type: string
+          title: Dashboard Url
+        host_offline_after_s:
+          type: integer
+          title: Host Offline After S
+        raw_retention_days:
+          type: integer
+          title: Raw Retention Days
+        rollup_1m_retention_days:
+          type: integer
+          title: Rollup 1M Retention Days
+        rollup_1h_retention_days:
+          type: integer
+          title: Rollup 1H Retention Days
+        active_keys:
+          type: integer
+          title: Active Keys
+        checks:
+          additionalProperties: true
+          type: object
+          title: Checks
+      type: object
+      required:
+      - version
+      - environment
+      - cloud
+      - key_mode
+      - storage
+      - cache_backend
+      - mail_mode
+      - dashboard_url
+      - host_offline_after_s
+      - raw_retention_days
+      - rollup_1m_retention_days
+      - rollup_1h_retention_days
+      - active_keys
+      - checks
+      title: SystemInfo
+    UserCreate:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        role:
+          type: string
+          enum:
+          - owner
+          - admin
+          - viewer
+          title: Role
+          default: viewer
+        password:
+          type: string
+          maxLength: 256
+          minLength: 10
+          title: Password
+      type: object
+      required:
+      - email
+      - name
+      - password
+      title: UserCreate
+    UserOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        email:
+          type: string
+          title: Email
+        name:
+          type: string
+          title: Name
+        role:
+          type: string
+          title: Role
+        disabled:
+          type: boolean
+          title: Disabled
+        last_login_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Login At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - email
+      - name
+      - role
+      - disabled
+      - last_login_at
+      - created_at
+      title: UserOut
+    UserUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        role:
+          anyOf:
+          - type: string
+            enum:
+            - owner
+            - admin
+            - viewer
+          - type: 'null'
+          title: Role
+        disabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Disabled
+      type: object
+      title: UserUpdate
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WorkloadRuleIn:
+      properties:
+        priority:
+          type: integer
+          maximum: 10000.0
+          minimum: 0.0
+          title: Priority
+          default: 100
+        workload:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Workload
+        team:
+          anyOf:
+          - type: string
+            maxLength: 80
+          - type: 'null'
+          title: Team
+        process_pattern:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Process Pattern
+        container_prefix:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Container Prefix
+        username:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Username
+        host_label:
+          anyOf:
+          - type: string
+            maxLength: 120
+            pattern: ^[A-Za-z0-9_.-]+=.{0,100}$
+          - type: 'null'
+          title: Host Label
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+      type: object
+      required:
+      - workload
+      title: WorkloadRuleIn
+    WorkloadRuleOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        priority:
+          type: integer
+          title: Priority
+        workload:
+          type: string
+          title: Workload
+        team:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Team
+        process_pattern:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Process Pattern
+        container_prefix:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Container Prefix
+        username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Username
+        host_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Host Label
+        enabled:
+          type: boolean
+          title: Enabled
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - priority
+      - workload
+      - team
+      - process_pattern
+      - container_prefix
+      - username
+      - host_label
+      - enabled
+      - created_at
+      title: WorkloadRuleOut
+    WorkloadShare:
+      properties:
+        workload:
+          type: string
+          title: Workload
+        label:
+          type: string
+          title: Label
+        team:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Team
+        gpu_hours:
+          type: number
+          title: Gpu Hours
+        idle_hours:
+          type: number
+          title: Idle Hours
+        share:
+          type: number
+          title: Share
+          description: Share of the GPU's monitored time, 0 to 1
+      type: object
+      required:
+      - workload
+      - label
+      - team
+      - gpu_hours
+      - idle_hours
+      - share
+      title: WorkloadShare
+servers:
+- url: http://localhost:4430
+  description: Local (make up)

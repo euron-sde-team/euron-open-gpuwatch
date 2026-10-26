@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="t d">
+  <title id="t">GPUWatch architecture</title>
+  <desc id="d">Agents on GPU hosts read NVML, DCGM or a simulator and scrape vLLM and TGI, then push batches over HTTPS to the API. The API writes partitioned samples to Postgres and the newest sample per GPU to the KV store. A worker builds minute and hour rollups, attributes cost, evaluates insights and alerts, and delivers email and signed webhooks through an outbox. The dashboard reads the API and a live server-sent event stream; Prometheus scrapes /metrics; reports go to S3.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8a78ab"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" rx="16" fill="#120c1e"/>
+
+  <g font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+    <!-- Column labels -->
+    <g font-size="12" font-weight="600" fill="#8a78ab" letter-spacing="1.2">
+      <text x="40" y="44">GPU HOSTS</text>
+      <text x="430" y="44">GPUWATCH</text>
+      <text x="900" y="44">OUT</text>
+    </g>
+
+    <!-- Hosts -->
+    <g>
+      <rect x="40" y="64" width="300" height="236" rx="14" fill="#1f1533"/>
+      <text x="60" y="94" fill="#f5efff" font-size="17" font-weight="600">gpuwatch-agent</text>
+      <text x="60" y="116" fill="#bfaedb" font-size="13">one per host, outbound only, no inbound port</text>
+      <g font-size="13" fill="#d8ccef">
+        <rect x="60" y="134" width="260" height="34" rx="8" fill="#2a1d44"/>
+        <text x="74" y="156">NVML, DCGM exporter or simulator</text>
+        <rect x="60" y="178" width="260" height="34" rx="8" fill="#2a1d44"/>
+        <text x="74" y="200">vLLM and TGI /metrics scrape</text>
+        <rect x="60" y="222" width="260" height="34" rx="8" fill="#2a1d44"/>
+        <text x="74" y="244">disk spool, replay, idempotent batches</text>
+      </g>
+      <text x="60" y="282" fill="#8a78ab" font-size="12">observe only: never runs or stops a process</text>
+    </g>
+
+    <g>
+      <rect x="40" y="330" width="300" height="96" rx="14" fill="#1f1533"/>
+      <text x="60" y="360" fill="#f5efff" font-size="17" font-weight="600">Automation</text>
+      <text x="60" y="384" fill="#bfaedb" font-size="13">read-only gwk_ API keys (viewer)</text>
+      <text x="60" y="406" fill="#bfaedb" font-size="13">Prometheus scrape of /metrics</text>
+    </g>
+
+    <g>
+      <rect x="40" y="456" width="300" height="104" rx="14" fill="#1f1533"/>
+      <text x="60" y="486" fill="#f5efff" font-size="17" font-weight="600">Dashboard (Next.js)</text>
+      <text x="60" y="510" fill="#bfaedb" font-size="13">overview, live, GPUs, costs, insights,</text>
+      <text x="60" y="530" fill="#bfaedb" font-size="13">alerts, inference; live tiles over SSE</text>
+    </g>
+
+    <!-- API -->
+    <g>
+      <rect x="430" y="64" width="380" height="196" rx="14" fill="#2b1a4a"/>
+      <text x="452" y="94" fill="#f5efff" font-size="17" font-weight="600">API (FastAPI)</text>
+      <g font-size="13" fill="#d8ccef">
+        <text x="452" y="122">/ingest/v1/batches: host token, rate limit, dedupe</text>
+        <text x="452" y="146">/api/v1: dashboard and automation, RBAC, CSRF</text>
+        <text x="452" y="170">/api/v1/live/stream: server-sent events</text>
+        <text x="452" y="194">/metrics: Prometheus exposition of the fleet</text>
+        <text x="452" y="218">every write audited, money in nano-dollars</text>
+      </g>
+      <text x="452" y="244" fill="#8a78ab" font-size="12">stateless: run N replicas</text>
+    </g>
+
+    <!-- Worker -->
+    <g>
+      <rect x="430" y="290" width="380" height="136" rx="14" fill="#2b1a4a"/>
+      <text x="452" y="320" fill="#f5efff" font-size="17" font-weight="600">Worker</text>
+      <g font-size="13" fill="#d8ccef">
+        <text x="452" y="346">1 minute and 1 hour rollups, cost attribution</text>
+        <text x="452" y="370">insights engine, alert evaluation</text>
+        <text x="452" y="394">notification outbox with backoff, retention</text>
+      </g>
+    </g>
+
+    <!-- Stores -->
+    <g>
+      <rect x="430" y="456" width="184" height="104" rx="14" fill="#1f1533"/>
+      <text x="450" y="486" fill="#f5efff" font-size="15" font-weight="600">PostgreSQL 16</text>
+      <text x="450" y="508" fill="#bfaedb" font-size="12">samples partitioned by day</text>
+      <text x="450" y="526" fill="#bfaedb" font-size="12">rollups, costs, findings,</text>
+      <text x="450" y="544" fill="#bfaedb" font-size="12">alerts, audit</text>
+    </g>
+    <g>
+      <rect x="626" y="456" width="184" height="104" rx="14" fill="#1f1533"/>
+      <text x="646" y="486" fill="#f5efff" font-size="15" font-weight="600">Redis (optional)</text>
+      <text x="646" y="508" fill="#bfaedb" font-size="12">newest sample per GPU</text>
+      <text x="646" y="526" fill="#bfaedb" font-size="12">rate limits, config cache</text>
+      <text x="646" y="544" fill="#bfaedb" font-size="12">in process without it</text>
+    </g>
+
+    <!-- Outputs -->
+    <g>
+      <rect x="900" y="64" width="260" height="96" rx="14" fill="#1f1533"/>
+      <text x="920" y="94" fill="#f5efff" font-size="17" font-weight="600">Email</text>
+      <text x="920" y="118" fill="#bfaedb" font-size="13">SMTP (Mailpit locally) or SES</text>
+      <text x="920" y="140" fill="#bfaedb" font-size="13">fired and resolved, once each</text>
+    </g>
+    <g>
+      <rect x="900" y="180" width="260" height="96" rx="14" fill="#1f1533"/>
+      <text x="920" y="210" fill="#f5efff" font-size="17" font-weight="600">Webhooks</text>
+      <text x="920" y="234" fill="#bfaedb" font-size="13">HMAC-SHA256 signed, timestamped</text>
+      <text x="920" y="256" fill="#bfaedb" font-size="13">SSRF-checked destinations</text>
+    </g>
+    <g>
+      <rect x="900" y="296" width="260" height="96" rx="14" fill="#1f1533"/>
+      <text x="920" y="326" fill="#f5efff" font-size="17" font-weight="600">S3</text>
+      <text x="920" y="350" fill="#bfaedb" font-size="13">CSV cost reports</text>
+      <text x="920" y="372" fill="#bfaedb" font-size="13">downloaded through the API</text>
+    </g>
+    <g>
+      <rect x="900" y="412" width="260" height="148" rx="14" fill="#1f1533"/>
+      <text x="920" y="442" fill="#f5efff" font-size="17" font-weight="600">On AWS</text>
+      <g font-size="13" fill="#bfaedb">
+        <text x="920" y="466">ECS Fargate behind an ALB</text>
+        <text x="920" y="488">RDS, ElastiCache, S3, KMS</text>
+        <text x="920" y="510">Secrets Manager, SES, ECR</text>
+        <text x="920" y="532">CloudWatch alarms</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Flows -->
+  <g fill="none" stroke="#8a78ab" stroke-width="1.8" marker-end="url(#arrow)">
+    <path d="M340 160 H426"/>
+    <path d="M340 378 C390 378 390 200 426 200"/>
+    <path d="M340 508 C395 508 395 160 426 160"/>
+    <path d="M522 426 V452"/>
+    <path d="M718 426 V452"/>
+    <path d="M810 330 C855 330 855 112 896 112"/>
+    <path d="M810 350 C860 350 860 228 896 228"/>
+    <path d="M810 200 C860 200 860 344 896 344"/>
+  </g>
+  <g font-family="JetBrains Mono, SFMono-Regular, Menlo, monospace" font-size="11" fill="#9d8bbd">
+    <text x="350" y="152">HTTPS push</text>
+    <text x="620" y="280" text-anchor="middle">API and worker share Postgres and the KV store</text>
+  </g>
+</svg>
