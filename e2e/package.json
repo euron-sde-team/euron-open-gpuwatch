@@ -1,0 +1,16 @@
+{
+  "name": "@gpuwatch/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser end-to-end tests against the running GPUWatch stack (make e2e).",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.10.0"
+  }
+}
