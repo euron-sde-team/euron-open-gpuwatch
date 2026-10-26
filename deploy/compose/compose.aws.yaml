@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Overlay: the local containers against REAL AWS resources (KMS key, reports bucket
+# and SES identity from infra/terraform/envs/aws-dev, or your own). Postgres and Redis stay
+# local containers. Credentials come from your AWS CLI profile, mounted read-only;
+# resource names from .env.aws. Nothing here ever holds a static key.
+#   cp deploy/compose/.env.aws.example deploy/compose/.env.aws   # then edit
+#   make up-aws
+# ─────────────────────────────────────────────────────────────────────────────
+x-aws-env: &aws-env
+  # `aws`, not `floci`: with ENVIRONMENT=production the API refuses an AWS_ENDPOINT_URL
+  # override in this mode.
+  GPUWATCH_CLOUD: aws
+  AWS_PROFILE: ${AWS_PROFILE:-default}
+  AWS_SDK_LOAD_CONFIG: "1"
+  AWS_CONFIG_FILE: /app/.aws/config
+  AWS_SHARED_CREDENTIALS_FILE: /app/.aws/credentials
+  STORAGE: s3
+  KEY_MODE: kms
+  MAIL_MODE: ses
+
+services:
+  migrate:
+    env_file: [.env.aws]
+    environment:
+      <<: *aws-env
+    volumes:
+      - ${HOME}/.aws:/app/.aws:ro
+
+  api:
+    env_file: [.env.aws]
+    environment:
+      <<: *aws-env
+    volumes:
+      - ${HOME}/.aws:/app/.aws:ro
+
+  worker:
+    env_file: [.env.aws]
+    environment:
+      <<: *aws-env
+    volumes:
+      - ${HOME}/.aws:/app/.aws:ro

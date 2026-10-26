@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars (git-ignored) and replace every placeholder.
+region      = "us-east-1"
+name_prefix = "acme-gpuwatch-dev" # the reports bucket name derives from this: make it globally unique
+
+hostname        = "gpuwatch-dev.example.com"
+certificate_arn = "<ACM_CERTIFICATE_ARN>"     # same region, covering hostname
+route53_zone_id = "<ROUTE53_HOSTED_ZONE_ID>" # or remove and CNAME hostname to load_balancer_dns_name
+
+# The image tag pushed to the ecr_repositories output (git commit or release).
+image_tag = "0.1.0"
+
+# Alert email (SES). Defaults to alerts@<hostname> with its DKIM records in
+# route53_zone_id; any domain you control works (its zone in mail_route53_zone_id, or
+# publish the email_dns_records output). Request SES production access before relying on it.
+# mail_from_domain     = "example.com"
+# mail_route53_zone_id = "<ROUTE53_HOSTED_ZONE_ID_OF_EXAMPLE_COM>"
+# mail_from_local_part = "gpu-alerts"
+
+# alarm_email           = "oncall@example.com"
+# metrics_allowed_cidrs = ["203.0.113.10/32"] # your Prometheus egress address (it also needs METRICS_TOKEN)
+
+# Webhooks to an internal relay inside the VPC on a port other than 443:
+# webhook_allow_private = true
+# webhook_egress        = [{ cidr = "10.0.0.0/16", port = 8080 }]
+
+# Extra non-secret API settings (see docs/guides/configuration.md).
+# api_extra_environment = {
+#   RAW_RETENTION_DAYS   = "7"
+#   HOST_OFFLINE_AFTER_S = "60"
+# }

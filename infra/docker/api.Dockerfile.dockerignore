@@ -1,0 +1,13 @@
+# Build context: apps/api (BuildKit reads <Dockerfile>.dockerignore next to the Dockerfile).
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.data
+tests
+.env
+.env.*

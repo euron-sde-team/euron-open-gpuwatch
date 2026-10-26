@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Overlay: emulated AWS with Floci (https://github.com/floci-io/floci, MIT).
+#
+# The SAME Terraform that provisions real AWS (infra/terraform/modules) runs here
+# against the emulator: the `terraform` one-shot applies infra/terraform/envs/local-floci
+# (reports bucket, KMS key, secrets, SES identity) before migrate, api and worker start.
+# The API then uses S3 and KMS exactly as it does on AWS:
+#
+#   webhook secrets  sealed with KMS Encrypt (alias/gpuwatch-local), encryption
+#                    context bound to the channel row
+#   reports          S3 bucket gpuwatch-local-reports, SSE-KMS: cost and usage CSVs
+#
+# Alert email still goes to Mailpit so you can read it; the SES path is covered by the
+# integration matrix (make test-matrix) against the same emulator.
+# ─────────────────────────────────────────────────────────────────────────────
+x-floci-env: &floci-env
+  GPUWATCH_CLOUD: floci
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_ENDPOINT_URL: http://floci:4566
+  S3_FORCE_PATH_STYLE: "true"
+  STORAGE: s3
+  REPORTS_BUCKET: gpuwatch-local-reports
+  KEY_MODE: kms
+  KMS_KEY_ID: alias/gpuwatch-local
+
+services:
+  floci:
+    image: floci/floci:2.3.0
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_DEFAULT_REGION: us-east-1
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /data
+    ports:
+      - "127.0.0.1:${GW_FLOCI_PORT:-4466}:4566"
+    volumes:
+      - flocidata:/data
+      # Only Docker-backed emulated services (Lambda, ECS, RDS) need the Docker
+      # socket. This stack uses S3, KMS and Secrets Manager, so it stays unmounted.
+    networks:
+      default:
+        # The S3 Control API (bucket tagging) addresses <account-id>.<endpoint>, so the
+        # emulated account's name has to resolve to the emulator as well.
+        aliases: ["000000000000.floci"]
+
+  # One-shot: provision the emulator with the production modules.
+  terraform:
+    image: hashicorp/terraform:1.16.6
+    working_dir: /infra/envs/local-floci
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "waiting for floci..."
+        until wget -q -O /dev/null http://floci:4566/; do sleep 1; done
+        mkdir -p /tfdata/state
+        terraform init -input=false -no-color >/dev/null
+        # State lives in the tfdata volume, so it shares the emulator's lifecycle
+        # (make down -v wipes both together).
+        terraform apply -input=false -auto-approve -no-color -state=/tfdata/state/local.tfstate -var endpoint=http://floci:4566 -var cors_origins='["http://localhost:${GW_WEB_PORT:-4410}","http://127.0.0.1:${GW_WEB_PORT:-4410}"]'
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      TF_IN_AUTOMATION: "1"
+      TF_DATA_DIR: /tfdata
+    volumes:
+      - ../../infra/terraform:/infra
+      - tfdata:/tfdata
+    depends_on:
+      - floci
+    restart: "no"
+
+  migrate:
+    environment:
+      <<: *floci-env
+    depends_on:
+      terraform:
+        condition: service_completed_successfully
+
+  api:
+    environment:
+      <<: *floci-env
+    depends_on:
+      terraform:
+        condition: service_completed_successfully
+
+  worker:
+    environment:
+      <<: *floci-env
+    depends_on:
+      terraform:
+        condition: service_completed_successfully
+
+volumes:
+  flocidata:
+  tfdata:
