@@ -1,0 +1,282 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Variants the shadcn "base-nova" primitives are written against. Base UI marks
+ * state with bare data attributes (data-open, data-checked, ...).
+ */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-highlighted {
+  &:where([data-highlighted]) {
+    @slot;
+  }
+}
+
+/*
+ * GPUWatch design tokens. Every color in the app comes from here: components
+ * use the semantic names (primary, savings for healthy, warning, danger, muted, and the
+ * chart-* series), never a hex.
+ * Structure comes from fills, spacing and soft shadows; borders are hairlines
+ * reserved for inputs and table rules.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--danger);
+  --color-border: var(--border);
+  --color-hairline: var(--hairline);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+
+  --color-savings: var(--savings);
+  --color-savings-soft: var(--savings-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-code-bg: var(--code-bg);
+  --color-code-fg: var(--code-fg);
+  --color-code-muted: var(--code-muted);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral-soft: var(--neutral-soft);
+
+  --color-chart-util: var(--chart-util);
+  --color-chart-mem: var(--chart-mem);
+  --color-chart-power: var(--chart-power);
+  --color-chart-temp: var(--chart-temp);
+  --color-chart-idle: var(--chart-idle);
+
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+
+  --shadow-xs: var(--elev-1);
+  --shadow-sm: var(--elev-1);
+  --shadow-md: var(--elev-2);
+  --shadow-lg: var(--elev-3);
+  --shadow-xl: var(--elev-4);
+}
+
+:root {
+  color-scheme: light;
+  --font-sans-stack: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono-stack: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --background: #f5f6f9;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --sidebar: #eef0f5;
+  --muted: #eef0f5;
+  --accent: #e9ebf3;
+  --muted-foreground: #5b6476;
+  --subtle: #7a8394;
+  --faint: #a3aab8;
+  --border: #e3e6ed;
+  --hairline: #eceef3;
+  --input: #d9dde6;
+  --ring: #7e22ce;
+
+  --primary: #7e22ce;
+  --primary-foreground: #ffffff;
+  --primary-soft: #f3e8ff;
+
+  --savings: #047857;
+  --savings-soft: #e3f6ee;
+  --warning: #b45309;
+  --warning-soft: #fdf1dc;
+  --danger: #be123c;
+  --danger-soft: #fde7ec;
+  --danger-foreground: #ffffff;
+  /* Code samples are a dark slab in both themes. */
+  --code-bg: #0d1017;
+  --code-fg: #d7dbe6;
+  --code-muted: #8b93a7;
+  --info: #0369a1;
+  --info-soft: #e1f1fb;
+  --neutral-soft: #eceef3;
+
+  /* Metric series: one hue per kind of reading, legible on both surfaces. */
+  --chart-util: #9333ea;
+  --chart-mem: #0284c7;
+  --chart-power: #d97706;
+  --chart-temp: #e11d48;
+  --chart-idle: #b9c0cc;
+  /* Categorical palette for workloads, teams and hosts. */
+  --chart-1: #9333ea;
+  --chart-2: #0284c7;
+  --chart-3: #d97706;
+  --chart-4: #059669;
+  --chart-5: #e11d48;
+  --chart-6: #64748b;
+  --chart-grid: #e8eaf0;
+  --chart-axis: #8a92a3;
+
+  /* The sign-in brand panel is dark in both themes. */
+  --panel: #0f0a17;
+  --panel-glow: rgba(147, 51, 234, 0.45);
+  --panel-glow-2: rgba(2, 132, 199, 0.22);
+  --panel-accent: #d8b4fe;
+  --panel-accent-soft: rgba(192, 132, 252, 0.16);
+
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --elev-2: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.05);
+  --elev-3: 0 2px 4px rgba(15, 23, 42, 0.05), 0 8px 24px rgba(15, 23, 42, 0.08);
+  --elev-4: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0b0d12;
+  --foreground: #e7e9ef;
+  --card: #13161d;
+  --popover: #181b24;
+  --sidebar: #0f1117;
+  --muted: #1b1f29;
+  --accent: #222734;
+  --muted-foreground: #9aa2b4;
+  --subtle: #7f8799;
+  --faint: #5d6576;
+  --border: #252a36;
+  --hairline: #1e222c;
+  --input: #2c3240;
+  --ring: #c084fc;
+
+  --primary: #c084fc;
+  --primary-foreground: #14081f;
+  --primary-soft: #261535;
+
+  --savings: #34d399;
+  --savings-soft: #0f2a22;
+  --warning: #fbbf24;
+  --warning-soft: #2e2410;
+  --danger: #fb7185;
+  --danger-soft: #34151d;
+  --danger-foreground: #1a0a0e;
+  --info: #38bdf8;
+  --info-soft: #0f2533;
+  --neutral-soft: #1f2330;
+
+  --chart-util: #c084fc;
+  --chart-mem: #38bdf8;
+  --chart-power: #fbbf24;
+  --chart-temp: #fb7185;
+  --chart-idle: #3a4152;
+  --chart-1: #c084fc;
+  --chart-2: #38bdf8;
+  --chart-3: #fbbf24;
+  --chart-4: #34d399;
+  --chart-5: #fb7185;
+  --chart-6: #94a3b8;
+  --chart-grid: #1f2430;
+  --chart-axis: #737b8e;
+
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --elev-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --elev-3: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.35);
+  --elev-4: 0 6px 16px rgba(0, 0, 0, 0.4), 0 20px 48px rgba(0, 0, 0, 0.45);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans-stack);
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Surface: the one "box" in the system, a fill plus a soft shadow, never an outline. */
+@utility surface {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--elev-2);
+}
+
+.recharts-wrapper *:focus {
+  outline: none;
+}

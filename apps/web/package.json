@@ -1,0 +1,62 @@
+{
+  "name": "@gpuwatch/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GPUWatch dashboard: live GPUs, history, costs, insights, alerts and inference.",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.18"
+  },
+  "scripts": {
+    "dev": "next dev -p 4410",
+    "build": "next build",
+    "start": "next start -p 4410",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "gen:api": "openapi-typescript ../../docs/api/openapi.yaml --default-non-nullable=false -o src/lib/api/schema.d.ts",
+    "qa": "node qa/visit.mjs"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.5.0",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@tanstack/react-query": "^5.101.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.544.0",
+    "next": "15.5.28",
+    "next-themes": "^0.4.6",
+    "openapi-fetch": "^0.14.0",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "recharts": "^3.2.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.3.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.1.13",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "15.5.28",
+    "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.9.1",
+    "tailwindcss": "^4.1.13",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.23"
+    }
+  }
+}
