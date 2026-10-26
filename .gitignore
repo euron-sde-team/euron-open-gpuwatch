@@ -1,0 +1,54 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+.turbo/
+*.log
+.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+apps/api/.data/
+
+# Environment: only the *.example files are ever committed
+.env
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.aws.example
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+crash.log
+backend.tf
+!backend.tf.example
+
+# Test and QA artifacts (the curated screenshots live in docs/assets)
+e2e/test-results/
+e2e/playwright-report/
+scripts/qa/output/
+playwright-report/
+test-results/
+
+# Local tool state
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.auth/
+*.tsbuildinfo

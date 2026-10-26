@@ -1,0 +1,11 @@
+node_modules
+.next
+coverage
+pnpm-lock.yaml
+.terraform
+*.tfstate*
+playwright-report
+test-results
+docs/api/openapi.yaml
+apps/web/src/lib/api/schema.d.ts
+apps/api/.venv
