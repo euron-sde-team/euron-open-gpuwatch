@@ -1,0 +1,101 @@
+[project]
+name = "gpuwatch"
+version = "0.1.0"
+description = "Euron Open GPUWatch: self-hosted GPU monitoring and cost intelligence. Live NVIDIA metrics, idle and waste detection, exact per-workload cost attribution, alerts and inference metrics."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "pydantic>=2.9",
+  "orjson>=3.10",
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.32",
+  "pydantic-settings>=2.6",
+  "sqlalchemy[asyncio]>=2.1",
+  "asyncpg>=0.30",
+  "alembic>=1.14",
+  "redis>=5.2",
+  "httpx>=0.28",
+  "argon2-cffi>=23.1",
+  "pyjwt>=2.10",
+  "boto3>=1.35",
+  "prometheus-client>=0.21",
+  "opentelemetry-api>=1.28",
+  "opentelemetry-sdk>=1.28",
+  "opentelemetry-exporter-otlp-proto-http>=1.28",
+  "cryptography>=43",
+  "pyyaml>=6.0",
+]
+
+[project.scripts]
+gpuwatch = "gpuwatch.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "boto3-stubs[s3,kms,secretsmanager,sesv2]>=1.35",
+  "asgi-lifespan>=2.1",
+  "types-pyyaml>=6.0",
+  # The real agent, for contract tests against the in-process API.
+  "gpuwatch-agent",
+]
+
+[tool.uv.sources]
+gpuwatch-agent = { path = "../agent", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpuwatch"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "S", "A", "C4", "SIM", "RUF", "ASYNC", "PT"]
+ignore = ["S101", "B008", "RUF012", "RUF001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S104", "S105", "S106", "S311", "E501", "PT018", "PT022", "PT011", "S110"]
+"src/gpuwatch/migrations/**" = ["E501", "UP", "I"]
+"src/gpuwatch/demo/**" = ["E501", "S311"]
+# SQL assembled from module constants (table names, metric expressions from fixed maps);
+# every value from a request is a bound parameter.
+"src/gpuwatch/telemetry/{rollups,service,retention}.py" = ["S608"]
+"src/gpuwatch/alerts/evaluator.py" = ["S608"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["asgi_lifespan.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = ["integration: needs Postgres, Redis and Floci (make test-integration)"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["gpuwatch"]
+branch = true
+concurrency = ["greenlet", "thread"]
+omit = ["*/migrations/*", "*/demo/*"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
