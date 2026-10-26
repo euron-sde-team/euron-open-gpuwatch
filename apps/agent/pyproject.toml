@@ -1,0 +1,67 @@
+[project]
+name = "gpuwatch-agent"
+version = "0.1.0"
+description = "Euron Open GPUWatch agent: collects NVIDIA GPU metrics (NVML or an existing DCGM exporter), GPU processes and inference server metrics, and sends them to a GPUWatch server. Observe only: no inbound port, no remote commands."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "httpx>=0.27",
+  # The NVML bindings load libnvidia-ml at runtime; importing them needs no GPU.
+  "nvidia-ml-py>=12.535",
+  "prometheus-client>=0.20",
+]
+
+[project.scripts]
+gpuwatch-agent = "gpuwatch_agent.cli:main"
+gpuwatch-mock-vllm = "gpuwatch_agent.mockvllm:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpuwatch_agent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "S", "A", "C4", "SIM", "RUF", "PT"]
+ignore = ["S101", "RUF001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S108", "S110", "S311", "E501", "N802", "N803", "N815", "N816", "PT011", "PT018", "PT022"]
+"src/gpuwatch_agent/collectors/simulated.py" = ["S311"]
+"src/gpuwatch_agent/mockvllm.py" = ["S311", "S104"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["pynvml.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["gpuwatch_agent"]
+branch = true
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
