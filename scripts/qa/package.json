@@ -1,0 +1,15 @@
+{
+  "name": "@gpuwatch/qa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser QA sweep for the GPUWatch dashboard (make qa).",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "qa": "node qa.mjs",
+    "screenshots": "node screenshots.mjs"
+  },
+  "dependencies": {
+    "puppeteer": "24.25.0"
+  }
+}

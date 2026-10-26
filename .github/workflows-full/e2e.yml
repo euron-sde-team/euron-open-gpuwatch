@@ -1,0 +1,57 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    name: full stack on Floci (demo fleet, option matrix, browser tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # The same files `make up` uses, for the steps that read logs without following them.
+      COMPOSE: docker compose --env-file deploy/compose/.env -f deploy/compose/compose.yaml -f deploy/compose/compose.floci.yaml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: e2e/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Start the stack (Terraform applies local-floci inside compose)
+        run: make up
+      - name: Demo configuration and the simulated GPU hosts (real agent, real ingest path)
+        run: make demo
+      - name: Let the demo agents finish their backfill and the worker roll it up
+        run: |
+          for _ in $(seq 1 60); do
+            if $COMPOSE --profile demo logs agent-infer 2>/dev/null | grep -q "backfilled"; then break; fi
+            sleep 5
+          done
+          sleep 30
+        timeout-minutes: 8
+      - name: Integration suite under every cache, key and storage backend
+        run: make test-matrix
+      - name: Browser end-to-end tests
+        run: make e2e
+      - name: Browser QA sweep
+        run: make qa
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            scripts/qa/output
+      - name: Logs on failure
+        if: failure()
+        run: $COMPOSE --profile demo logs --tail 300
+      - if: always()
+        run: make down

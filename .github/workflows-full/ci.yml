@@ -1,0 +1,123 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sanitize:
+    name: sanitization and OpenAPI drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-sanitization.sh
+      - uses: astral-sh/setup-uv@v6
+      - name: OpenAPI reference matches the app
+        working-directory: apps/api
+        run: uv sync --frozen && uv run pytest tests/unit/system/test_openapi_drift.py -q
+
+  integration:
+    name: integration tests (Postgres 16, Redis 7, Mailpit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.10-alpine
+        env:
+          POSTGRES_USER: gpuwatch
+          POSTGRES_PASSWORD: gpuwatch
+          POSTGRES_DB: gpuwatch
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gpuwatch"
+          --health-interval 3s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7.4.6-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 3s --health-retries 30
+      # Alert email lands here; the suite reads it back through Mailpit's API.
+      mailpit:
+        image: axllent/mailpit:v1.27.9
+        ports: ["1025:1025", "8025:8025"]
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://127.0.0.1:8025/livez"
+          --health-interval 3s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://gpuwatch:gpuwatch@localhost:5432/gpuwatch_test
+      TEST_REDIS_URL: redis://localhost:6379/15
+      TEST_SMTP_PORT: "1025"
+      TEST_MAILPIT_API: http://localhost:8025/api/v1
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - run: uv python install 3.12 && uv sync --frozen
+      - name: Unit and integration tests with an 85% coverage floor
+        run: uv run pytest tests -q --cov --cov-report=term-missing:skip-covered --cov-fail-under=85
+
+  integration-no-redis:
+    name: integration tests without Redis (in-process fallback)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.10-alpine
+        env:
+          POSTGRES_USER: gpuwatch
+          POSTGRES_PASSWORD: gpuwatch
+          POSTGRES_DB: gpuwatch
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gpuwatch"
+          --health-interval 3s --health-timeout 3s --health-retries 30
+      mailpit:
+        image: axllent/mailpit:v1.27.9
+        ports: ["1025:1025", "8025:8025"]
+        options: >-
+          --health-cmd "wget -q -O /dev/null http://127.0.0.1:8025/livez"
+          --health-interval 3s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://gpuwatch:gpuwatch@localhost:5432/gpuwatch_test
+      TEST_CACHE: memory
+      TEST_SMTP_PORT: "1025"
+      TEST_MAILPIT_API: http://localhost:8025/api/v1
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - run: uv python install 3.12 && uv sync --frozen
+      - run: uv run pytest tests/integration -q -p no:warnings
+
+  agent:
+    name: agent tests with coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/agent/uv.lock
+      - run: uv python install 3.12 && uv sync --frozen
+      - run: uv run pytest -q --cov --cov-report=term-missing:skip-covered
